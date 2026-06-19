@@ -94,27 +94,27 @@ jobs:
 
       - name: Patch vendor/arrow soong
         run: |
-          python3 /home/runner/arrow-gsi/vendor/arrow/build/soong/fix.py || true
-          python3 - /home/runner/arrow-gsi/vendor/arrow/build/soong/Android.bp << 'PYEOF'
-          import sys, re
-          path = sys.argv[1]
-          text = open(path).read()
-          def remove_block(text, keyword):
-              idx = text.find(keyword)
-              if idx == -1:
-                  return text
-              gs = text.rfind('genrule', 0, idx)
-              ob = text.find('{', gs)
-              depth, j = 1, ob + 1
-              while j < len(text) and depth > 0:
-                  if text[j] == '{': depth += 1
-                  elif text[j] == '}': depth -= 1
-                  j += 1
-              return text[:gs] + text[j:]
-          text = remove_block(text, 'generated_kernel_includes')
-          open(path, 'w').write(text)
-          print('Patched OK')
-          PYEOF
+          BP=~/arrow-gsi/vendor/arrow/build/soong/Android.bp
+          python3 -c "
+import re, sys
+path = '$BP'.replace('~', __import__('os').path.expanduser('~'))
+text = open(path).read()
+idx = text.find('generated_kernel_includes')
+if idx != -1:
+    gs = text.rfind('genrule', 0, idx)
+    ob = text.find('{', gs)
+    depth, j = 1, ob + 1
+    while j < len(text) and depth > 0:
+        if text[j] == '{': depth += 1
+        elif text[j] == '}': depth -= 1
+        j += 1
+    text = text[:gs] + text[j:]
+    open(path, 'w').write(text)
+    print('Patched OK')
+else:
+    print('keyword not found')
+"
+          cat ~/arrow-gsi/vendor/arrow/build/soong/Android.bp | head -30
 
       - name: Build GSI
         run: |
