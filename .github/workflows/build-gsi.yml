@@ -92,6 +92,37 @@ jobs:
           cd ~/arrow-gsi/device/phh/treble
           bash generate.sh arrow
 
+      - name: Write bp patcher
+        run: |
+          cat > /tmp/patch_bp.py << 'SCRIPTEOF'
+import sys
+
+path = sys.argv[1]
+lines = open(path).read().split('\n')
+
+# Hapus arrow_generator block
+out = []
+skip = False
+depth = 0
+for line in lines:
+    if 'arrow_generator' in line and '{' in line:
+        skip = True
+    if skip:
+        depth += line.count('{') - line.count('}')
+        if depth <= 0:
+            skip = False
+            depth = 0
+        continue
+    # Hapus cc_library_headers generated_kernel_headers
+    if 'generated_kernel_headers' in line and '{' in line:
+        skip = True
+        continue
+    out.append(line)
+
+open(path, 'w').write('\n'.join(out))
+print('Patched OK')
+SCRIPTEOF
+
       - name: Patch vendor/arrow soong
         run: |
           BP=/home/runner/arrow-gsi/vendor/arrow/build/soong/Android.bp
