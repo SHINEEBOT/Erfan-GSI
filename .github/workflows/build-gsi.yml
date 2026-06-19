@@ -4,7 +4,7 @@ on:
   workflow_dispatch:
     inputs:
       LUNCH_TARGET:
-        description: 'Lunch combo (sesuaikan vendor interface C33: bvN/bvS dst)'
+        description: 'Lunch combo target'
         required: true
         default: 'treble_arm64_bvN-userdebug'
 
@@ -48,54 +48,42 @@ jobs:
           chmod a+x ~/bin/repo
           echo "$HOME/bin" >> $GITHUB_PATH
 
-      - name: Init manifest (ArrowOS Extended arrow-13.1)
+      - name: Init manifest
         run: |
           mkdir -p ~/arrow-gsi && cd ~/arrow-gsi
           git config --global user.email "ci@build.local"
           git config --global user.name "CI Builder"
           repo init -u https://github.com/ArrowOS-Extended/android_manifest.git -b arrow-13.1 --git-lfs --depth=1
 
-      - name: Sync sources (ArrowOS Extended manifest)
+      - name: Sync sources
         run: |
           cd ~/arrow-gsi
           repo sync -c --force-sync --optimized-fetch --no-tags --no-clone-bundle --prune -j$(nproc --all)
 
-      - name: Clone TrebleDroid device tree + deps
+      - name: Clone TrebleDroid device tree
         run: |
           cd ~/arrow-gsi
-          # NOTE: ganti branch -b android-13.0 kalau TrebleDroid udah punya tag spesifik utk A13,
-          # cek dulu branch list di masing-masing repo sebelum run.
           git clone https://github.com/TrebleDroid/device_phh_treble -b android-13.0 device/phh/treble
           git clone https://github.com/TrebleDroid/vendor_interfaces -b android-13.0 vendor/interfaces
           git clone https://github.com/TrebleDroid/treble_app treble_app
           git clone https://github.com/TrebleDroid/vendor_hardware_overlay vendor/hardware_overlay
 
-      - name: Create arrow.mk inherit file
+      - name: Create arrow.mk
         run: |
-          cd ~/arrow-gsi
-          cat > device/phh/treble/arrow.mk << 'EOF'
-          # Custom inherit file buat ArrowOS Extended (adapted dari pattern evo.mk)
+          cat > ~/arrow-gsi/device/phh/treble/arrow.mk << 'EOF'
           $(call inherit-product, vendor/arrow/config/common.mk)
-
           PRODUCT_DEVICE := arrow_arm64_bvN
           PRODUCT_BRAND := google
           PRODUCT_SYSTEM_BRAND := google
           PRODUCT_MANUFACTURER := google
           PRODUCT_SYSTEM_MANUFACTURER := google
           PRODUCT_MODEL := ArrowOS Extended GSI
-
-          # No kernel image (GSI pakai kernel device, bukan kernel ROM)
           TARGET_NO_KERNEL_OVERRIDE := true
           TARGET_NO_KERNEL_IMAGE := true
           PRODUCT_OTA_ENFORCE_VINTF_KERNEL_REQUIREMENTS := false
-
-          TARGET_BOOT_ANIMATION_RES := 1080
+          TARGET_BOOT_ANIMATION_RES := 720
           TARGET_SUPPORTS_64_BIT_APPS := true
-
-          # SELinux - pakai sepolicy vendor C33, bukan punya ROM
           TARGET_USES_PREBUILT_VENDOR_SEPOLICY := true
-
-          # GMS via flag ArrowOS Extended sendiri (bukan gapps generic phh)
           ARROW_GAPPS := true
           EOF
 
@@ -106,27 +94,27 @@ jobs:
 
       - name: Patch vendor/arrow soong
         run: |
-          python3 - << 'PYEOF'
-import re
-with open('/home/runner/arrow-gsi/vendor/arrow/build/soong/Android.bp', 'r') as f:
-    text = f.read()
-def remove_block(text, keyword):
-    idx = text.find(keyword)
-    if idx == -1:
-        return text
-    genrule_start = text.rfind('genrule', 0, idx)
-    open_brace = text.find('{', genrule_start)
-    depth, j = 1, open_brace + 1
-    while j < len(text) and depth > 0:
-        if text[j] == '{': depth += 1
-        elif text[j] == '}': depth -= 1
-        j += 1
-    return text[:genrule_start] + text[j:]
-text = remove_block(text, 'generated_kernel_includes')
-with open('/home/runner/arrow-gsi/vendor/arrow/build/soong/Android.bp', 'w') as f:
-    f.write(text)
-print('Patched OK')
-PYEOF
+          python3 /home/runner/arrow-gsi/vendor/arrow/build/soong/fix.py || true
+          python3 - /home/runner/arrow-gsi/vendor/arrow/build/soong/Android.bp << 'PYEOF'
+          import sys, re
+          path = sys.argv[1]
+          text = open(path).read()
+          def remove_block(text, keyword):
+              idx = text.find(keyword)
+              if idx == -1:
+                  return text
+              gs = text.rfind('genrule', 0, idx)
+              ob = text.find('{', gs)
+              depth, j = 1, ob + 1
+              while j < len(text) and depth > 0:
+                  if text[j] == '{': depth += 1
+                  elif text[j] == '}': depth -= 1
+                  j += 1
+              return text[:gs] + text[j:]
+          text = remove_block(text, 'generated_kernel_includes')
+          open(path, 'w').write(text)
+          print('Patched OK')
+          PYEOF
 
       - name: Build GSI
         run: |
@@ -138,22 +126,16 @@ PYEOF
           lunch ${{ github.event.inputs.LUNCH_TARGET }}
           make WITHOUT_CHECK_API=true -j$(nproc --all) systemimage
 
-      - name: Compress system image
+      - name: Compress output
         run: |
           cd ~/arrow-gsi/out/target/product/tdgsi_arm64_ab
           xz -9 -T0 -v -z system.img
-
-      - name: Locate output
-        id: locate
-        run: |
-          cd ~/arrow-gsi
-          IMG=$(find out/target/product -name "system.img.xz" | head -n1)
-          echo "img_path=$IMG" >> $GITHUB_OUTPUT
 
       - name: Send to Telegram
         env:
           BOT_TOKEN: ${{ secrets.TELEGRAM_BOT_TOKEN }}
           CHAT_ID: ${{ secrets.TELEGRAM_CHAT_ID }}
         run: |
-          curl -F document=@"${{ steps.locate.outputs.img_path }}" \
-            "https://api.telegram.org/bot${BOT_TOKEN}/sendDocument?chat_id=${CHAT_ID}&caption=ArrowOS%20Extended%20GSI%20build%20done"
+          IMG=$(find ~/arrow-gsi/out/target/product -name "system.img.xz" | head -n1)
+          curl -F document=@"$IMG" \
+            "https://api.telegram.org/bot${BOT_TOKEN}/sendDocument?chat_id=${CHAT_ID}&caption=ArrowOS+Extended+GSI+done"
