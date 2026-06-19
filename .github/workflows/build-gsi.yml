@@ -1,0 +1,135 @@
+name: Build ArrowOS Extended GSI (Treble)
+
+on:
+  workflow_dispatch:
+    inputs:
+      LUNCH_TARGET:
+        description: 'Lunch combo (sesuaikan vendor interface C33: bvN/bvS dst)'
+        required: true
+        default: 'treble_arm64_bvN-userdebug'
+
+env:
+  CCACHE_DIR: /home/runner/.ccache
+  CCACHE_COMPRESS: 1
+  CCACHE_MAXSIZE: 20G
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    timeout-minutes: 350
+    steps:
+      - name: Free up disk space
+        run: |
+          sudo rm -rf /usr/share/dotnet /usr/local/lib/android /opt/ghc /opt/hostedtoolcache
+          sudo apt-get clean
+          df -h
+
+      - name: Install deps
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y git-lfs python3 python3-pip curl bc bison build-essential \
+            ccache flex g++-multilib gcc-multilib gnupg gperf imagemagick lib32readline-dev \
+            lib32z1-dev liblz4-tool libncurses5-dev libsdl1.2-dev libssl-dev libxml2 \
+            libxml2-utils lzop pngcrush rsync schedtool squashfs-tools xsltproc zip zlib1g-dev \
+            openjdk-17-jdk
+          git lfs install
+
+      - name: Setup ccache
+        uses: actions/cache@v4
+        with:
+          path: /home/runner/.ccache
+          key: ccache-gsi-${{ github.run_id }}
+          restore-keys: ccache-gsi-
+
+      - name: Install repo tool
+        run: |
+          mkdir -p ~/bin
+          curl https://storage.googleapis.com/git-repo-downloads/repo > ~/bin/repo
+          chmod a+x ~/bin/repo
+          echo "$HOME/bin" >> $GITHUB_PATH
+
+      - name: Init manifest (ArrowOS Extended arrow-13.1)
+        run: |
+          mkdir -p ~/arrow-gsi && cd ~/arrow-gsi
+          git config --global user.email "ci@build.local"
+          git config --global user.name "CI Builder"
+          repo init -u https://github.com/ArrowOS-Extended/android_manifest.git -b arrow-13.1 --git-lfs --depth=1
+
+      - name: Sync sources (ArrowOS Extended manifest)
+        run: |
+          cd ~/arrow-gsi
+          repo sync -c --force-sync --optimized-fetch --no-tags --no-clone-bundle --prune -j$(nproc --all)
+
+      - name: Clone TrebleDroid device tree + deps
+        run: |
+          cd ~/arrow-gsi
+          # NOTE: ganti branch -b android-13.0 kalau TrebleDroid udah punya tag spesifik utk A13,
+          # cek dulu branch list di masing-masing repo sebelum run.
+          git clone https://github.com/TrebleDroid/device_phh_treble -b android-13.0 device/phh/treble
+          git clone https://github.com/TrebleDroid/vendor_interfaces vendor/interfaces
+          git clone https://github.com/TrebleDroid/treble_app treble_app
+          git clone https://github.com/TrebleDroid/vendor_hardware_overlay vendor/hardware_overlay
+
+      - name: Create arrow.mk inherit file
+        run: |
+          cd ~/arrow-gsi
+          cat > device/phh/treble/arrow.mk << 'EOF'
+          # Custom inherit file buat ArrowOS Extended (adapted dari pattern evo.mk)
+          $(call inherit-product, vendor/arrow/config/common.mk)
+
+          PRODUCT_DEVICE := arrow_arm64_bvN
+          PRODUCT_BRAND := google
+          PRODUCT_SYSTEM_BRAND := google
+          PRODUCT_MANUFACTURER := google
+          PRODUCT_SYSTEM_MANUFACTURER := google
+          PRODUCT_MODEL := ArrowOS Extended GSI
+
+          # No kernel image (GSI pakai kernel device, bukan kernel ROM)
+          TARGET_NO_KERNEL_OVERRIDE := true
+          TARGET_NO_KERNEL_IMAGE := true
+          PRODUCT_OTA_ENFORCE_VINTF_KERNEL_REQUIREMENTS := false
+
+          TARGET_BOOT_ANIMATION_RES := 1080
+          TARGET_SUPPORTS_64_BIT_APPS := true
+
+          # SELinux - pakai sepolicy vendor C33, bukan punya ROM
+          TARGET_USES_PREBUILT_VENDOR_SEPOLICY := true
+
+          # GMS via flag ArrowOS Extended sendiri (bukan gapps generic phh)
+          ARROW_GAPPS := true
+          EOF
+
+      - name: Generate treble config
+        run: |
+          cd ~/arrow-gsi/device/phh/treble
+          bash generate.sh arrow
+
+      - name: Build GSI
+        run: |
+          cd ~/arrow-gsi
+          export USE_CCACHE=1
+          export WITHOUT_CHECK_API=true
+          source build/envsetup.sh
+          ccache -M 50G -F 0 || true
+          lunch ${{ github.event.inputs.LUNCH_TARGET }}
+          make WITHOUT_CHECK_API=true -j$(nproc --all) systemimage
+
+      - name: Compress system image
+        run: |
+          cd ~/arrow-gsi/out/target/product/tdgsi_arm64_ab
+          xz -9 -T0 -v -z system.img
+
+      - name: Locate output
+        id: locate
+        run: |
+          cd ~/arrow-gsi
+          IMG=$(find out/target/product -name "system.img.xz" | head -n1)
+          echo "img_path=$IMG" >> $GITHUB_OUTPUT
+
+      - name: Send to Telegram
+        env:
+          BOT_TOKEN: ${{ secrets.TELEGRAM_BOT_TOKEN }}
+          CHAT_ID: ${{ secrets.TELEGRAM_CHAT_ID }}
+        run: |
+          curl -F document=@"${{ steps.locate.outputs.img_path }}" \
+            "https://api.telegram.org/bot${BOT_TOKEN}/sendDocument?chat_id=${CHAT_ID}&caption=ArrowOS%20Extended%20GSI%20build%20done"
