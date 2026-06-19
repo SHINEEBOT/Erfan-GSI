@@ -106,7 +106,27 @@ jobs:
 
       - name: Patch vendor/arrow soong
         run: |
-          sed -i '/generated_kernel_includes/,/^}/d' ~/arrow-gsi/vendor/arrow/build/soong/Android.bp
+          python3 - << 'PYEOF'
+import re
+with open('/home/runner/arrow-gsi/vendor/arrow/build/soong/Android.bp', 'r') as f:
+    text = f.read()
+def remove_block(text, keyword):
+    idx = text.find(keyword)
+    if idx == -1:
+        return text
+    genrule_start = text.rfind('genrule', 0, idx)
+    open_brace = text.find('{', genrule_start)
+    depth, j = 1, open_brace + 1
+    while j < len(text) and depth > 0:
+        if text[j] == '{': depth += 1
+        elif text[j] == '}': depth -= 1
+        j += 1
+    return text[:genrule_start] + text[j:]
+text = remove_block(text, 'generated_kernel_includes')
+with open('/home/runner/arrow-gsi/vendor/arrow/build/soong/Android.bp', 'w') as f:
+    f.write(text)
+print('Patched OK')
+PYEOF
 
       - name: Build GSI
         run: |
