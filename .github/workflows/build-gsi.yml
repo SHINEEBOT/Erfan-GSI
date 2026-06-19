@@ -119,7 +119,10 @@ jobs:
 
       - name: Patch vendor/arrow soong
         run: |
-          python3 /tmp/fix_soong.py ~/arrow-gsi/vendor/arrow/build/soong/Android.bp
+          BP=/home/runner/arrow-gsi/vendor/arrow/build/soong/Android.bp
+          # Hapus seluruh genrule block generated_kernel_includes
+          perl -i -0pe 's/genrule\s*\{[^}]*generated_kernel_includes[^}]*\}//gs' $BP
+          echo "=== Android.bp line 20-30 ===" && sed -n '20,30p' $BP
 
       - name: Build GSI
         run: |
