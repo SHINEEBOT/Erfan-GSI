@@ -81,7 +81,7 @@ jobs:
           TARGET_NO_KERNEL_OVERRIDE := true
           TARGET_NO_KERNEL_IMAGE := true
           PRODUCT_OTA_ENFORCE_VINTF_KERNEL_REQUIREMENTS := false
-          TARGET_BOOT_ANIMATION_RES := 720
+          TARGET_BOOT_ANIMATION_RES := 1080
           TARGET_SUPPORTS_64_BIT_APPS := true
           TARGET_USES_PREBUILT_VENDOR_SEPOLICY := true
           ARROW_GAPPS := true
@@ -92,29 +92,34 @@ jobs:
           cd ~/arrow-gsi/device/phh/treble
           bash generate.sh arrow
 
+      - name: Write soong patcher
+        run: |
+          cat > /tmp/fix_soong.py << 'EOF'
+          import sys
+          path = sys.argv[1]
+          text = open(path).read()
+          keyword = 'generated_kernel_includes'
+          idx = text.find(keyword)
+          if idx != -1:
+              gs = text.rfind('genrule', 0, idx)
+              ob = text.find('{', gs)
+              depth, j = 1, ob + 1
+              while j < len(text) and depth > 0:
+                  if text[j] == '{':
+                      depth += 1
+                  elif text[j] == '}':
+                      depth -= 1
+                  j += 1
+              text = text[:gs] + text[j:]
+              open(path, 'w').write(text)
+              print('Patched OK')
+          else:
+              print('keyword not found, skipping')
+          EOF
+
       - name: Patch vendor/arrow soong
         run: |
-          BP=~/arrow-gsi/vendor/arrow/build/soong/Android.bp
-          python3 -c "
-import re, sys
-path = '$BP'.replace('~', __import__('os').path.expanduser('~'))
-text = open(path).read()
-idx = text.find('generated_kernel_includes')
-if idx != -1:
-    gs = text.rfind('genrule', 0, idx)
-    ob = text.find('{', gs)
-    depth, j = 1, ob + 1
-    while j < len(text) and depth > 0:
-        if text[j] == '{': depth += 1
-        elif text[j] == '}': depth -= 1
-        j += 1
-    text = text[:gs] + text[j:]
-    open(path, 'w').write(text)
-    print('Patched OK')
-else:
-    print('keyword not found')
-"
-          cat ~/arrow-gsi/vendor/arrow/build/soong/Android.bp | head -30
+          python3 /tmp/fix_soong.py ~/arrow-gsi/vendor/arrow/build/soong/Android.bp
 
       - name: Build GSI
         run: |
