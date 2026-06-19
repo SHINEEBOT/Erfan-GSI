@@ -66,7 +66,7 @@ jobs:
           # NOTE: ganti branch -b android-13.0 kalau TrebleDroid udah punya tag spesifik utk A13,
           # cek dulu branch list di masing-masing repo sebelum run.
           git clone https://github.com/TrebleDroid/device_phh_treble -b android-13.0 device/phh/treble
-          git clone https://github.com/TrebleDroid/vendor_interfaces vendor/interfaces
+          git clone https://github.com/TrebleDroid/vendor_interfaces -b android-13.0 vendor/interfaces
           git clone https://github.com/TrebleDroid/treble_app treble_app
           git clone https://github.com/TrebleDroid/vendor_hardware_overlay vendor/hardware_overlay
 
