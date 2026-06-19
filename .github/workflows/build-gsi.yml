@@ -104,6 +104,10 @@ jobs:
           cd ~/arrow-gsi/device/phh/treble
           bash generate.sh arrow
 
+      - name: Patch vendor/arrow soong
+        run: |
+          sed -i '/generated_kernel_includes/,/^}/d' ~/arrow-gsi/vendor/arrow/build/soong/Android.bp
+
       - name: Build GSI
         run: |
           cd ~/arrow-gsi
