@@ -95,9 +95,9 @@ jobs:
       - name: Patch vendor/arrow soong
         run: |
           BP=/home/runner/arrow-gsi/vendor/arrow/build/soong/Android.bp
-          sed -i '/arrow_generator/,/^}/d' $BP
-          sed -i '/cc_library_headers/{N;/generated_kernel_headers/,/^}/d}' $BP
-          echo "=== Patched ===" && head -35 $BP
+          echo "aW1wb3J0IHN5cywgcmUKcGF0aCA9IHN5cy5hcmd2WzFdCnRleHQgPSBvcGVuKHBhdGgpLnJlYWQoKQoKZGVmIHJlbW92ZV9ibG9jayhzLCBrZXl3b3JkKToKICAgIHJlc3VsdCA9IFtdCiAgICBpID0gMAogICAgd2hpbGUgaSA8IGxlbihzKToKICAgICAgICBpZHggPSBzLmZpbmQoa2V5d29yZCwgaSkKICAgICAgICBpZiBpZHggPT0gLTE6CiAgICAgICAgICAgIHJlc3VsdC5hcHBlbmQoc1tpOl0pCiAgICAgICAgICAgIGJyZWFrCiAgICAgICAgYmxvY2tfc3RhcnQgPSBzLnJmaW5kKCdcbicsIDAsIGlkeCkgKyAxCiAgICAgICAgb3Blbl9icmFjZSA9IHMuZmluZCgneyd9ICwgaWR4KQogICAgICAgIGlmIG9wZW5fYnJhY2UgPT0gLTE6CiAgICAgICAgICAgIHJlc3VsdC5hcHBlbmQoc1tpOl0pCiAgICAgICAgICAgIGJyZWFrCiAgICAgICAgZGVwdGgsIGogPSAxLCBvcGVuX2JyYWNlICsgMQogICAgICAgIHdoaWxlIGogPCBsZW4ocykgYW5kIGRlcHRoID4gMDoKICAgICAgICAgICAgaWYgc1tqXSA9PSAneyc6IGRlcHRoICs9IDEKICAgICAgICAgICAgZWxpZiBzW2pdID09ICd9JzogZGVwdGggLT0gMQogICAgICAgICAgICBqICs9IDEKICAgICAgICByZXN1bHQuYXBwZW5kKHNbaTo6YmxvY2tfc3RhcnRdKQogICAgICAgIGkgPSBqCiAgICByZXR1cm4gJycuam9pbihyZXN1bHQpCgp0ZXh0ID0gcmVtb3ZlX2Jsb2NrKHRleHQsICdhcnJvd19nZW5lcmF0b3InKQp0ZXh0ID0gcmVtb3ZlX2Jsb2NrKHRleHQsICdnZW5lcmF0ZWRfa2VybmVsX2hlYWRlcnMnKQpvcGVuKHBhdGgsICd3Jykud3JpdGUodGV4dCkKcHJpbnQoJ1BhdGNoZWQgT0snKQo=" | base64 -d > /tmp/patch_bp.py
+          python3 /tmp/patch_bp.py $BP
+          head -35 $BP
 
       - name: Build GSI
         run: |
