@@ -120,8 +120,16 @@ jobs:
       - name: Patch vendor/arrow soong
         run: |
           BP=/home/runner/arrow-gsi/vendor/arrow/build/soong/Android.bp
-          # Hapus seluruh genrule block generated_kernel_includes
-          perl -i -0pe 's/genrule\s*\{[^}]*generated_kernel_includes[^}]*\}//gs' $BP
+          python3 -c "
+import re
+c = open('$BP').read()
+# Hapus arrow_generator block (PATH_OVERRIDE_SOONG error)
+c = re.sub(r'arrow_generator\s*\{.*?\}', '', c, flags=re.DOTALL)
+# Hapus cc_library_headers yang depend ke generated_kernel_includes
+c = re.sub(r'cc_library_headers\s*\{[^}]*generated_kernel_includes[^}]*\}', '', c, flags=re.DOTALL)
+open('$BP', 'w').write(c)
+print('Patched OK')
+"
           echo "=== Android.bp line 20-30 ===" && sed -n '20,30p' $BP
 
       - name: Debug soong bp
