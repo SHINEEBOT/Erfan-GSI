@@ -124,6 +124,11 @@ jobs:
           perl -i -0pe 's/genrule\s*\{[^}]*generated_kernel_includes[^}]*\}//gs' $BP
           echo "=== Android.bp line 20-30 ===" && sed -n '20,30p' $BP
 
+      - name: Debug soong bp
+        run: |
+          echo "=== Full Android.bp ===" 
+          cat ~/arrow-gsi/vendor/arrow/build/soong/Android.bp
+
       - name: Build GSI
         run: |
           cd ~/arrow-gsi
