@@ -88,6 +88,14 @@ jobs:
           cd ~/arrow-gsi/device/phh/treble
           bash generate.sh arrow
 
+      - name: Setup swap
+        run: |
+          sudo fallocate -l 8G /swapfile
+          sudo chmod 600 /swapfile
+          sudo mkswap /swapfile
+          sudo swapon /swapfile
+          free -h
+
       - name: Build GSI
         run: |
           cd ~/arrow-gsi
@@ -97,7 +105,7 @@ jobs:
           source build/envsetup.sh
           ccache -M 50G -F 0 || true
           lunch ${{ github.event.inputs.LUNCH_TARGET }}
-          make WITHOUT_CHECK_API=true -j$(nproc --all) systemimage
+          make WITHOUT_CHECK_API=true -j4 systemimage
 
       - name: Compress output
         run: |
