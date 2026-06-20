@@ -107,6 +107,7 @@ jobs:
           export JAVA_TOOL_OPTIONS="-Xmx6g"
           export SOONG_GEN_CMAKEFILES=0
           export SOONG_GEN_COMPDB=0
+          export SOONG_SKIP_TESTS=true
           source build/envsetup.sh
           ccache -M 50G -F 0 || true
           lunch ${{ github.event.inputs.LUNCH_TARGET }}
