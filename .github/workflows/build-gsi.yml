@@ -61,6 +61,14 @@ jobs:
           cd ~/arrow-gsi
           repo sync -c --force-sync --optimized-fetch --no-tags --no-clone-bundle --prune -j$(nproc --all)
 
+      - name: Clone TrebleDroid device tree
+        run: |
+          cd ~/arrow-gsi
+          git clone https://github.com/TrebleDroid/device_phh_treble -b android-13.0 device/phh/treble
+          git clone https://github.com/TrebleDroid/vendor_interfaces -b android-13.0 vendor/interfaces
+          git clone https://github.com/TrebleDroid/treble_app treble_app
+          git clone https://github.com/TrebleDroid/vendor_hardware_overlay vendor/hardware_overlay
+
       - name: Clone patches from naz664
         run: |
           git clone https://github.com/naz664/ArrowOS_gsi.git /tmp/ArrowOS_gsi -b 13.1 --depth=1
