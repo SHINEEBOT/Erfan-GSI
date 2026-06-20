@@ -48,62 +48,44 @@ jobs:
           chmod a+x ~/bin/repo
           echo "$HOME/bin" >> $GITHUB_PATH
 
-      - name: Init manifest
+      - name: Init manifest (ArrowOS Extended)
         run: |
           mkdir -p ~/arrow-gsi && cd ~/arrow-gsi
           git config --global user.email "ci@build.local"
           git config --global user.name "CI Builder"
           repo init -u https://github.com/ArrowOS-Extended/android_manifest.git -b arrow-13.1 --git-lfs --depth=1
+          git clone https://github.com/naz664/treble_manifest.git .repo/local_manifests -b 13
 
       - name: Sync sources
         run: |
           cd ~/arrow-gsi
           repo sync -c --force-sync --optimized-fetch --no-tags --no-clone-bundle --prune -j$(nproc --all)
 
-      - name: Clone TrebleDroid device tree
+      - name: Clone patches from naz664
         run: |
-          cd ~/arrow-gsi
-          git clone https://github.com/TrebleDroid/device_phh_treble -b android-13.0 device/phh/treble
-          git clone https://github.com/TrebleDroid/vendor_interfaces -b android-13.0 vendor/interfaces
-          git clone https://github.com/TrebleDroid/treble_app treble_app
-          git clone https://github.com/TrebleDroid/vendor_hardware_overlay vendor/hardware_overlay
+          git clone https://github.com/naz664/ArrowOS_gsi.git /tmp/ArrowOS_gsi -b 13.1 --depth=1
 
       - name: Create arrow.mk
         run: |
-          cat > ~/arrow-gsi/device/phh/treble/arrow.mk << 'EOF'
-          $(call inherit-product, vendor/arrow/config/common.mk)
-          PRODUCT_DEVICE := arrow_arm64_bvN
-          PRODUCT_BRAND := google
-          PRODUCT_SYSTEM_BRAND := google
-          PRODUCT_MANUFACTURER := google
-          PRODUCT_SYSTEM_MANUFACTURER := google
-          PRODUCT_MODEL := ArrowOS Extended GSI
-          TARGET_NO_KERNEL_OVERRIDE := true
-          TARGET_NO_KERNEL_IMAGE := true
-          PRODUCT_OTA_ENFORCE_VINTF_KERNEL_REQUIREMENTS := false
-          TARGET_BOOT_ANIMATION_RES := 720
-          TARGET_SUPPORTS_64_BIT_APPS := true
-          TARGET_USES_PREBUILT_VENDOR_SEPOLICY := true
-          ARROW_GAPPS := true
-          EOF
+          cp /tmp/ArrowOS_gsi/Arrow.mk ~/arrow-gsi/device/phh/treble/arrow.mk
+
+      - name: Apply patches
+        run: |
+          cd ~/arrow-gsi
+          cp -r /tmp/ArrowOS_gsi/patches .
+          bash patches/apply-patches.sh . || true
 
       - name: Generate treble config
         run: |
           cd ~/arrow-gsi/device/phh/treble
           bash generate.sh arrow
 
-      - name: Patch vendor/arrow soong
-        run: |
-          BP=/home/runner/arrow-gsi/vendor/arrow/build/soong/Android.bp
-          echo "aW1wb3J0IHN5cwpwYXRoID0gc3lzLmFyZ3ZbMV0KdGV4dCA9IG9wZW4ocGF0aCkucmVhZCgpCgpkZWYgcmVtb3ZlX2Jsb2NrKHMsIGtleXdvcmQpOgogICAgcmVzdWx0ID0gW10KICAgIGkgPSAwCiAgICB3aGlsZSBpIDwgbGVuKHMpOgogICAgICAgIGlkeCA9IHMuZmluZChrZXl3b3JkLCBpKQogICAgICAgIGlmIGlkeCA9PSAtMToKICAgICAgICAgICAgcmVzdWx0LmFwcGVuZChzW2k6XSkKICAgICAgICAgICAgYnJlYWsKICAgICAgICBibG9ja19zdGFydCA9IHMucmZpbmQoJ1xuJywgMCwgaWR4KSArIDEKICAgICAgICBvcGVuX2JyYWNlID0gcy5maW5kKCd7JywgaWR4KQogICAgICAgIGlmIG9wZW5fYnJhY2UgPT0gLTE6CiAgICAgICAgICAgIHJlc3VsdC5hcHBlbmQoc1tpOl0pCiAgICAgICAgICAgIGJyZWFrCiAgICAgICAgZGVwdGgsIGogPSAxLCBvcGVuX2JyYWNlICsgMQogICAgICAgIHdoaWxlIGogPCBsZW4ocykgYW5kIGRlcHRoID4gMDoKICAgICAgICAgICAgaWYgc1tqXSA9PSAneyc6CiAgICAgICAgICAgICAgICBkZXB0aCArPSAxCiAgICAgICAgICAgIGVsaWYgc1tqXSA9PSAnfSc6CiAgICAgICAgICAgICAgICBkZXB0aCAtPSAxCiAgICAgICAgICAgIGogKz0gMQogICAgICAgIHJlc3VsdC5hcHBlbmQoc1tpOmJsb2NrX3N0YXJ0XSkKICAgICAgICBpID0gagogICAgcmV0dXJuICcnLmpvaW4ocmVzdWx0KQoKdGV4dCA9IHJlbW92ZV9ibG9jayh0ZXh0LCAnYXJyb3dfZ2VuZXJhdG9yJykKdGV4dCA9IHJlbW92ZV9ibG9jayh0ZXh0LCAnZ2VuZXJhdGVkX2tlcm5lbF9oZWFkZXJzJykKb3BlbihwYXRoLCAndycpLndyaXRlKHRleHQpCnByaW50KCdQYXRjaGVkIE9LJykK" | base64 -d > /tmp/patch_bp.py
-          python3 /tmp/patch_bp.py $BP
-          head -35 $BP
-
       - name: Build GSI
         run: |
           cd ~/arrow-gsi
           export USE_CCACHE=1
           export WITHOUT_CHECK_API=true
+          export ARROW_GAPPS=true
           source build/envsetup.sh
           ccache -M 50G -F 0 || true
           lunch ${{ github.event.inputs.LUNCH_TARGET }}
