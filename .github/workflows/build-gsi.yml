@@ -104,10 +104,13 @@ jobs:
           export USE_CCACHE=1
           export WITHOUT_CHECK_API=true
           export ARROW_GAPPS=true
+          export JAVA_TOOL_OPTIONS="-Xmx6g"
+          export SOONG_GEN_CMAKEFILES=0
+          export SOONG_GEN_COMPDB=0
           source build/envsetup.sh
           ccache -M 50G -F 0 || true
           lunch ${{ github.event.inputs.LUNCH_TARGET }}
-          make WITHOUT_CHECK_API=true -j4 systemimage
+          make WITHOUT_CHECK_API=true SKIP_BOOT_JARS_CHECK=true -j2 systemimage
 
       - name: Compress output
         run: |
