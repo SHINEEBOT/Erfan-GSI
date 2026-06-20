@@ -54,7 +54,7 @@ jobs:
           git config --global user.email "ci@build.local"
           git config --global user.name "CI Builder"
           repo init -u https://github.com/ArrowOS-Extended/android_manifest.git -b arrow-13.1 --git-lfs --depth=1
-          git clone https://github.com/naz664/treble_manifest.git .repo/local_manifests -b 13
+          # Tidak pakai treble_manifest naz664 karena ArrowOS Extended sudah punya vendor/gapps sendiri
 
       - name: Sync sources
         run: |
